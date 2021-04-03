@@ -1,29 +1,21 @@
-import random
-import pandas as pd
-from abc import ABC, abstractmethod
-import seaborn as sns
-import itertools
-cm = sns.light_palette("green", as_cmap=True)
-
-
 class LiarsGame:
-    def __init__(self, initial_money, players, verbose=False):
+    def __init__(self, initial_money, strategies, verbose=False):
 
-        assert players
-        assert len(players) == len(
-            {player.name for player in players}), "You have different players with the same name"
-        assert len(players) > 2, "You need at least 3 players to start a game"
+        assert len(strategies) > 2, "You need at least 3 players to start a game"
         assert initial_money > 0
 
         # Secret attributes
-        self.__players = players
-        self.__money = {player: initial_money for player in players}
+        self.__players = [strategy(name=strategy.__name__)
+                          for strategy in strategies]
+        self.__initial_n_players = len(self.__players)
+        self.__money = {player: initial_money for player in self.__players}
         self.__game_history = pd.DataFrame(
-            columns=[player.name for player in players],
+            columns=[player.name for player in self.__players],
             index=[],
             data=0
         )
         self.__verbose = verbose
+        self.__eliminations = []
         self.__run_game()
 
     def __repr__(self):
@@ -50,11 +42,26 @@ class LiarsGame:
         return len(self.__players)
 
     @property
+    def eliminations(self):
+        return self.__eliminations
+
+    @property
     def game_history(self):
         return self.__game_history
 
-    def show_game_history(self):
+    def show_game_history_heatmap(self):
         return self.__game_history.T.style.background_gradient(cmap=cm).set_precision(2).highlight_null('red')
+
+    def show_game_history_bar_plot(self):
+        return self.__game_history.plot.bar(
+            stacked=True,
+            figsize=(20, 10),
+            width=.95
+        ).legend(
+            loc="center right",
+            bbox_to_anchor=(0, 0.5),
+            prop={'size': 18}
+        )
 
     def my_money(self, player):
         return self.__money[player]
@@ -63,7 +70,7 @@ class LiarsGame:
 
     def __run_round(self):
 
-        self.__game_history.loc[self.n_players] = {
+        self.__game_history.loc[self.__initial_n_players - self.n_players] = {
             player.name: self.money[player] for player in self.players}
 
         current_move = {
@@ -77,7 +84,13 @@ class LiarsGame:
                     f"{player.name}: {current_move[player]:.2f} / {self.money[player]:.2f}")
             print("\n" + "="*50 + "\n")
 
-        smallest_contributor = min(self.players, key=current_move.__getitem__)
+        lowest_contribution = min(current_move.values())
+        smallest_contributor = random.choice([
+            player
+            for player in self.__players
+            if current_move[player] == lowest_contribution
+        ])
+        self.__eliminations.append(smallest_contributor)
         current_move[smallest_contributor] = self.__money[smallest_contributor]
         pot = sum(current_move.values())
         self.__players = [
@@ -93,107 +106,10 @@ class LiarsGame:
             self.__run_round()
 
         winner = self.players[0]
-        self.__game_history.loc[1] = {winner.name: self.money[winner]}
-
-        print(f"Winner: {winner.name}")
+        self.__game_history.loc[self.__initial_n_players -
+                                self.n_players] = {winner.name: self.money[winner]}
+        self.__eliminations.append(winner)
+        if self.__verbose:
+            print(f"Winner: {winner.name}")
 
         return winner.name
-
-
-class Player:
-
-    def __init__(self, name):
-        self.name = name
-
-    def __repr__(self):
-        return self.name
-
-    @abstractmethod
-    def move(self):
-        pass
-
-
-class half(Player):
-    def move(self, status):
-        return .5
-
-
-class everything(Player):
-    def move(self, status):
-        return 1
-
-
-class ninety_percentile(Player):
-    def move(self, status):
-        return .9
-
-
-class tenth_percentile(Player):
-    def move(self, status):
-        return .1
-
-
-class uniformly_random(Player):
-    def move(self, status):
-        return random.random()
-
-
-class two_over_n_players(Player):
-
-    def __init__(self, name):
-        self.name = name
-        self.initial_number_of_players = None
-
-    def move(self, status):
-        if not self.initial_number_of_players:
-            self.initial_number_of_players = status.n_players
-        return 2*(1 - status.n_players/self.initial_number_of_players)
-
-
-class everything_except_on_initial(Player):
-
-    def __init__(self, name):
-        self.name = name
-        self.first_move = True
-
-    def move(self, status):
-        if not self.first_move:
-            return 1
-        else:
-            self.first_move = False
-            return random.random()
-
-
-class exponential_decay(Player):
-
-    def __init__(self, name):
-        self.name = name
-        self.initial_number_of_players = None
-
-    def move(self, status):
-
-        if not self.initial_number_of_players:
-            self.initial_number_of_players = status.n_players
-
-        return 1 - 0.1**(1 + self.initial_number_of_players - status.n_players)
-
-
-if __name__ == "__main__":
-    initial_money = 100
-    strategies = [
-        half,
-        ninety_percentile,
-        tenth_percentile,
-        two_over_n_players,
-        uniformly_random,
-        everything,
-        everything_except_on_initial,
-        exponential_decay
-    ]
-    n_replicas = 2
-    players = [
-        strategy(name=f"{strategy.__name__}_{i}")
-        for (strategy, i) in itertools.product(strategies, range(n_replicas))]
-
-    x = LiarsGame(initial_money=initial_money, players=players)
-    x.show_game_history()
