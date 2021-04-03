@@ -4,7 +4,7 @@ In Liars Game, a community of `n` players start with the same amount of money, a
 
 ### Quickstart
 
-I have the game class and some example solutions stored in this GitRepo, but the best way to get started is directly on the browser using [Google Colab](https://colab.research.google.com/github/migueltorrescosta/tutor/blob/master/LiarsGame.ipynb). This way you do not have to setup anything locally 
+I have the game class and some example solutions stored in this GitRepo, but the best way to get started is directly on the browser using [Google Colab](https://colab.research.google.com/github/migueltorrescosta/tutor/blob/master/Tournments/LiarsGame.ipynb). This way you do not have to setup anything locally 
 
 ### Best strategies
 
